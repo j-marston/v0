@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>レスポンシブナビゲーション</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* スクロール無効化用のクラス */
+        .no-scroll {
+            overflow: hidden;
+        }
+
+        /* タッチデバイス対応 */
+        .touch-action-none {
+            touch-action: none;
+        }
+
+        .touch-action-pan-y {
+            touch-action: pan-y;
+        }
+
+        /* iOS Safari対応 */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* タッチ時のちらつき防止 */
+        button, a {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* スクロール改善 */
+        body {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        /* メニューオーバーレイのタッチ改善 */
+        .menu-overlay {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+    <div x-data="navigation()" class="min-h-screen bg-gray-50">
+        <!-- ナビゲーション -->
+        <nav class="bg-white shadow-md fixed top-0 left-0 right-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <!-- ロゴ -->
+                    <div class="flex-shrink-0">
+                        <h1 class="text-xl font-bold text-gray-800">Logo</h1>
+                    </div>
+
+                    <!-- PC用メニュー（flexレイアウト） -->
+                    <div class="hidden md:block">
+                        <div class="ml-10 flex items-baseline space-x-4">
+                            <template x-for="item in menuItems" :key="item.label">
+                                <a 
+                                    :href="item.href"
+                                    x-text="item.label"
+                                    @click="handleMenuClick($event, item.href)"
+                                    class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+                                ></a>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- SP用ハンバーガーメニューボタン -->
+                    <div class="md:hidden">
+                        <button
+                            @click="toggleMenu()"
+                            @touchstart.passive="handleTouchStart"
+                            @touchend.passive="handleTouchEnd"
+                            class="text-gray-600 hover:text-gray-900 p-2 rounded-md transition-colors duration-200 touch-action-none"
+                            aria-label="メニューを開く"
+                        >
+                            <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SP用スライドメニュー -->
+            <div
+                x-show="isMenuOpen"
+                x-transition:enter="transition-opacity duration-300"
+                x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100"
+                x-transition:leave="transition-opacity duration-300"
+                x-transition:leave-start="opacity-100"
+                x-transition:leave-end="opacity-0"
+                class="fixed inset-0 z-50 md:hidden"
+                style="display: none;"
+            >
+                <!-- オーバーレイ -->
+                <div 
+                    class="absolute inset-0 bg-black bg-opacity-50 menu-overlay" 
+                    @click="closeMenu()"
+                    @touchstart.passive="handleOverlayTouch"
+                    @touchend.passive="handleOverlayTouchEnd"
+                ></div>
+
+                <!-- メニューパネル -->
+                <div
+                    x-show="isMenuOpen"
+                    x-transition:enter="transition-transform duration-300 ease-in-out"
+                    x-transition:enter-start="transform translate-x-full"
+                    x-transition:enter-end="transform translate-x-0"
+                    x-transition:leave="transition-transform duration-300 ease-in-out"
+                    x-transition:leave-start="transform translate-x-0"
+                    x-transition:leave-end="transform translate-x-full"
+                    class="absolute top-0 right-0 h-full w-80 bg-white shadow-xl"
+                >
+                    <!-- メニューヘッダー -->
+                    <div class="flex items-center justify-between p-4 border-b">
+                        <h2 class="text-lg font-semibold text-gray-800">メニュー</h2>
+                        <button
+                            @click="closeMenu()"
+                            @touchstart.passive="handleTouchStart"
+                            @touchend.passive="handleTouchEnd"
+                            class="text-gray-600 hover:text-gray-900 p-2 rounded-md transition-colors duration-200 touch-action-none"
+                            aria-label="メニューを閉じる"
+                        >
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- メニューアイテム -->
+                    <div class="py-4">
+                        <template x-for="item in menuItems" :key="item.label">
+                            <a
+                                :href="item.href"
+                                x-text="item.label"
+                                @click="handleMenuClick($event, item.href)"
+                                class="block px-6 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors duration-200"
+                            ></a>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-24">
+            <section id="home" class="mb-16">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">ホーム</h2>
+                <p class="text-gray-600 leading-relaxed mb-4">
+                    ここはホームセクションです。PCではナビゲーションがflexレイアウトで表示され、
+                    スマートフォンでは右上のハンバーガーメニューから右側にスライドするメニューが表示されます。
+                </p>
+                <p class="text-gray-600 leading-relaxed mb-4">
+                    Alpine.jsを使用してシンプルで軽量な実装を実現しています。
+                    SPでメニューが開いている間は、メインページのスクロールが無効になります。
+                </p>
+                <div class="h-96 bg-gradient-to-b from-blue-50 to-blue-100 rounded-lg flex items-center justify-center">
+                    <p class="text-blue-600 font-medium">GitHub Pagesでデプロイされたサイト</p>
+                </div>
+            </section>
+
+            <section id="services" class="mb-16">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">サービス</h2>
+                <p class="text-gray-600 leading-relaxed mb-4">
+                    サービスに関する情報をここに記載します。レスポンシブデザインにより、
+                    どのデバイスからでも快適にご利用いただけます。
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">サービス1</h3>
+                        <p class="text-gray-600">サービス1の詳細説明がここに入ります。</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">サービス2</h3>
+                        <p class="text-gray-600">サービス2の詳細説明がここに入ります。</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">サービス3</h3>
+                        <p class="text-gray-600">サービス3の詳細説明がここに入ります。</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="about" class="mb-16">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">会社概要</h2>
+                <p class="text-gray-600 leading-relaxed mb-4">
+                    会社の概要や理念について説明します。ナビゲーションメニューから
+                    簡単にこのセクションにアクセスできます。
+                </p>
+                <div class="bg-white p-8 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">私たちの理念</h3>
+                    <p class="text-gray-600 leading-relaxed">
+                        お客様に最高のサービスを提供することを目指し、
+                        常に技術革新と品質向上に取り組んでいます。
+                        シンプルで使いやすいソリューションを通じて、
+                        皆様のビジネスの成功をサポートします。
+                    </p>
+                </div>
+            </section>
+
+            <section id="contact" class="mb-16">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">お問い合わせ</h2>
+                <p class="text-gray-600 leading-relaxed mb-6">
+                    お問い合わせフォームやコンタクト情報をここに配置します。
+                    モバイルでもデスクトップでも使いやすいデザインです。
+                </p>
+                <div class="bg-white p-8 rounded-lg shadow-md">
+                    <form class="space-y-4">
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">お名前</label>
+                            <input type="text" id="name" name="name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+                            <input type="email" id="email" name="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="message" class="block text-sm font-medium text-gray-700 mb-1">メッセージ</label>
+                            <textarea id="message" name="message" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors duration-200">
+                            送信
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        function navigation() {
+            return {
+                isMenuOpen: false,
+                touchStartTime: 0,
+                touchStartX: 0,
+                touchStartY: 0,
+                currentScrollPosition: 0,
+                menuItems: [
+                    { label: "ホーム", href: "#home" },
+                    { label: "サービス", href: "#services" },
+                    { label: "会社概要", href: "#about" },
+                    { label: "お問い合わせ", href: "#contact" },
+                ],
+        
+                // メニューリンククリック処理
+                handleMenuClick(event, href) {
+                    event.preventDefault(); // デフォルトの動作を防止
+            
+                    // 現在のスクロール位置を保存
+                    this.currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+            
+                    // メニューを閉じる（SPの場合）
+                    if (window.innerWidth < 768) { // md未満
+                        this.closeMenu();
+                    }
+            
+                    // スムーススクロール（セクションへの移動）
+                    setTimeout(() => {
+                        const targetElement = document.querySelector(href);
+                        if (targetElement) {
+                            // ヘッダーの高さを考慮してスクロール
+                            const headerHeight = 64; // h-16 = 4rem = 64px
+                            const targetPosition = targetElement.offsetTop - headerHeight;
+                    
+                            window.scrollTo({
+                                top: targetPosition,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }, window.innerWidth < 768 ? 300 : 0); // SPの場合はアニメーション後にスクロール
+                },
+                
+                toggleMenu() {
+                    this.isMenuOpen = !this.isMenuOpen;
+                    this.toggleBodyScroll();
+                },
+                
+                closeMenu() {
+                    this.isMenuOpen = false;
+                    this.enableBodyScroll();
+                },
+                
+                // タッチイベント処理
+                handleTouchStart(event) {
+                    this.touchStartTime = Date.now();
+                    if (event.touches && event.touches[0]) {
+                        this.touchStartX = event.touches[0].clientX;
+                        this.touchStartY = event.touches[0].clientY;
+                    }
+                },
+                
+                handleTouchEnd(event) {
+                    const touchEndTime = Date.now();
+                    const touchDuration = touchEndTime - this.touchStartTime;
+                    
+                    // 長押しやスワイプを除外（200ms以下のタップのみ有効）
+                    if (touchDuration < 200) {
+                        if (event.changedTouches && event.changedTouches[0]) {
+                            const touchEndX = event.changedTouches[0].clientX;
+                            const touchEndY = event.changedTouches[0].clientY;
+                            const deltaX = Math.abs(touchEndX - this.touchStartX);
+                            const deltaY = Math.abs(touchEndY - this.touchStartY);
+                            
+                            // スワイプでない場合のみクリック処理
+                            if (deltaX < 10 && deltaY < 10) {
+                                // 通常のクリックイベントに委ねる
+                                return;
+                            }
+                        }
+                    }
+                    
+                    // スワイプや長押しの場合はイベントを停止
+                    event.preventDefault();
+                    event.stopPropagation();
+                },
+                
+                // オーバーレイタッチ処理
+                handleOverlayTouch(event) {
+                    this.touchStartTime = Date.now();
+                    if (event.touches && event.touches[0]) {
+                        this.touchStartX = event.touches[0].clientX;
+                        this.touchStartY = event.touches[0].clientY;
+                    }
+                },
+                
+                handleOverlayTouchEnd(event) {
+                    const touchEndTime = Date.now();
+                    const touchDuration = touchEndTime - this.touchStartTime;
+                    
+                    if (touchDuration < 300) {
+                        if (event.changedTouches && event.changedTouches[0]) {
+                            const touchEndX = event.changedTouches[0].clientX;
+                            const touchEndY = event.changedTouches[0].clientY;
+                            const deltaX = Math.abs(touchEndX - this.touchStartX);
+                            const deltaY = Math.abs(touchEndY - this.touchStartY);
+                            
+                            // タップの場合のみメニューを閉じる
+                            if (deltaX < 15 && deltaY < 15) {
+                                this.closeMenu();
+                            }
+                        }
+                    }
+                },
+                
+                toggleBodyScroll() {
+                    if (this.isMenuOpen) {
+                        this.disableBodyScroll();
+                    } else {
+                        this.enableBodyScroll();
+                    }
+                },
+                
+                disableBodyScroll() {
+                    document.body.classList.add('no-scroll');
+                    // iOS Safari対応
+                    document.body.style.position = 'fixed';
+                    document.body.style.width = '100%';
+                },
+                
+                enableBodyScroll() {
+                    document.body.classList.remove('no-scroll');
+                    // iOS Safari対応
+                    document.body.style.position = '';
+                    document.body.style.width = '';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
